@@ -13,8 +13,12 @@ import java.util.concurrent.TimeUnit;
 
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.chromium.HasCdp;
+import org.openqa.selenium.devtools.DevTools;
+import org.openqa.selenium.devtools.HasDevTools;
 
 import jakarta.mail.Authenticator;
 import jakarta.mail.Message;
@@ -31,36 +35,55 @@ public class Main {
 
         ChromeOptions options = new ChromeOptions();
 
+        options.addArguments("--headless=new");
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("safebrowsing.enabled", true);
-        prefs.put("profile.default_content_setting_values.automatic_downloads", 1);
         prefs.put("download.default_directory", downloadDir);
-        prefs.put("savefile.default_directory", downloadDir);
+        prefs.put("download.prompt_for_download", false);
+        prefs.put("download.directory_upgrade", true);
 
         options.setExperimentalOption("prefs", prefs);
 
-        String actualVersion = getVersionFromFile();
         WebDriver driver = new ChromeDriver(options);
+
+        String actualVersion = getVersionFromFile();
         String isFilesDownloaded = "";
 
-        try {
-            driver.manage().window().maximize();
+        driver.manage().window().maximize();
             driver.navigate().to("https://budzetjst.pl/pobieranie/instalacja/bestia/");
             String version = driver
                     .findElement(By.xpath("/html/body/div/main/div/div/div/article/div/div/div/div[1]/div/h3"))
                     .getText();
             version = version.split(" ")[2];
 
+        try {
             if (!version.equals(actualVersion)) {
                 CreateFile("BestiaVersion.txt");
                 WriteToFile("BestiaVersion.txt", "Bestia version: " + version);
 
                 System.out.println("New Bestia version is available: " + version);
 
-                DownloadFile(driver); // Pobieranie instalacji
+                DevTools devTools = ((HasDevTools) driver).getDevTools();
+                devTools.createSession();
+
+                Map<String, Object> params = new HashMap<>();
+                params.put("behavior", "allow");
+                params.put("downloadPath", downloadDir);
+
+                ((HasCdp) driver).executeCdpCommand("Page.setDownloadBehavior", params);
+                
+                WebElement downloadButton = driver.findElement(By.xpath("/html/body/div/main/div/div/div/article/div/div/div/div[1]/a"));
+                String downloadUrl = downloadButton.getAttribute("href");
+                DownloadFile(driver, downloadUrl); // Pobieranie instalacji
 
                 driver.navigate().to("https://budzetjst.pl/pobieranie/aktualizacje/bestia/");
-                DownloadFile(driver); // Pobieranie aktualizacji
+                downloadButton = driver.findElement(By.xpath("/html/body/div/main/div/div/div/article/div/div/div/div[1]/a"));
+                downloadUrl = downloadButton.getAttribute("href");
+                DownloadFile(driver, downloadUrl); // Pobieranie aktualizacji
 
                 TimeUnit.SECONDS.sleep(90);
 
@@ -70,8 +93,10 @@ public class Main {
                 if (installationFile.exists() && updateFile.exists()) {
                     isFilesDownloaded = "Files downloaded successfully";
 
-                    installationFile.renameTo(new File(downloadDir + "\\Instalacja" + File.separator + "BestiaSetup_" + version + ".exe"));
-                    updateFile.renameTo(new File(downloadDir + "\\Aktualizacja" + File.separator + "BestiaPatch_" + version + ".exe"));
+                    installationFile.renameTo(new File(
+                            downloadDir + "\\Instalacja" + File.separator + "BestiaSetup_" + version + ".exe"));
+                    updateFile.renameTo(new File(
+                            downloadDir + "\\Aktualizacja" + File.separator + "BestiaPatch_" + version + ".exe"));
 
                     System.out.println(isFilesDownloaded + "and moved to respective folders.");
                 } else {
@@ -188,7 +213,8 @@ public class Main {
             e.printStackTrace();
         }
     }
-    private static void DownloadFile(WebDriver driver){
-        driver.findElement(By.xpath("/html/body/div/main/div/div/div/article/div/div/div/div[1]/a")).click();
+
+    private static void DownloadFile(WebDriver driver, String downloadUrl) throws IOException, InterruptedException {
+        driver.get(downloadUrl);
     }
 }
