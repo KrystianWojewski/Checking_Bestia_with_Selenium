@@ -3,3 +3,5 @@ Recipients.txt
 .github/
 target/
 BestiaVersion/
+logs.log
+BestiaVersion.txt

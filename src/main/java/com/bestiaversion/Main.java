@@ -10,6 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.FileHandler;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -29,10 +32,27 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
 public class Main {
+
+    private static final Logger logger = Logger.getLogger(Main.class.getName());
     public static void main(String[] args) {
 
         String downloadDir = System.getenv("DOWNLOAD_DIR");
+        
+        FileHandler fh;
 
+        try{
+            fh = new FileHandler("logs.log", true);
+            logger.addHandler(fh);
+            SimpleFormatter formatter = new SimpleFormatter();
+            fh.setFormatter(formatter);
+
+            logger.info("Application started");
+
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         ChromeOptions options = new ChromeOptions();
 
         options.addArguments("--headless=new");
@@ -65,7 +85,7 @@ public class Main {
                 CreateFile("BestiaVersion.txt");
                 WriteToFile("BestiaVersion.txt", "Bestia version: " + version);
 
-                System.out.println("New Bestia version is available: " + version);
+                logger.info("New Bestia version is available: " + version);
 
                 DevTools devTools = ((HasDevTools) driver).getDevTools();
                 devTools.createSession();
@@ -98,20 +118,22 @@ public class Main {
                     updateFile.renameTo(new File(
                             downloadDir + "\\Aktualizacja" + File.separator + "BestiaPatch_" + version + ".exe"));
 
-                    System.out.println(isFilesDownloaded + "and moved to respective folders.");
+                    logger.info(isFilesDownloaded + "and moved to respective folders.");
                 } else {
                     isFilesDownloaded = "Failed to download the files.";
-                    System.out.println(isFilesDownloaded);
+                    logger.warning(isFilesDownloaded);
                 }
 
+                logger.info("Sending email notification.");
                 SendMail("Bestia version update", "New version of Bestia is available: " + version
                         + "\n" + "Location: " + downloadDir);
 
             } else {
-                System.out.println("Bestia version is up to date: " + version);
+                logger.info("Bestia version is up to date: " + version);
             }
 
         } catch (Exception e1) {
+            logger.severe("An error occurred.");
             e1.printStackTrace();
         } finally {
             driver.quit();
@@ -160,7 +182,7 @@ public class Main {
             Writer.write(content);
             Writer.close();
         } catch (IOException e) {
-            System.out.println("An error occurred.");
+            logger.severe("An error occurred while writing to file.");
             e.printStackTrace();
         }
     }
@@ -169,10 +191,10 @@ public class Main {
         try {
             File File = new File(fileName);
             if (File.createNewFile()) {
-                System.out.println("File created: " + File.getName());
+                logger.info("File created: " + File.getName());
             }
         } catch (IOException e) {
-            System.out.println("An error occurred.");
+            logger.severe("An error occurred while creating file.");
             e.printStackTrace();
         }
     }
@@ -208,8 +230,9 @@ public class Main {
 
             Transport.send(message);
 
-            System.out.println("Email sent successfully.");
+            logger.info("Email sent successfully.");
         } catch (Exception e) {
+            logger.severe("Error occurred while sending email.");
             e.printStackTrace();
         }
     }
